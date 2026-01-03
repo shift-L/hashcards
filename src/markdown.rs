@@ -38,6 +38,8 @@ pub struct MarkdownRenderConfig {
     pub resolver: MediaResolver,
     /// The port where the server is exposed.
     pub port: u16,
+    /// Hostname URL
+    pub hostname: String,
 }
 
 pub fn markdown_to_html(config: &MarkdownRenderConfig, markdown: &str) -> Fallible<String> {
@@ -100,7 +102,7 @@ fn modify_url(url: &str, config: &MarkdownRenderConfig) -> Fallible<String> {
         })?
         .display()
         .to_string();
-    Ok(format!("http://localhost:{port}/file/{path}"))
+    Ok(format!("http://{0}:{port}/file/{path}", config.hostname))
 }
 
 #[cfg(test)]

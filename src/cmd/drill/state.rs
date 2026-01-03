@@ -32,6 +32,7 @@ use crate::types::timestamp::Timestamp;
 #[derive(Clone)]
 pub struct ServerState {
     pub port: u16,
+    pub hostname: String,
     pub directory: PathBuf,
     pub macros: Vec<(String, String)>,
     pub total_cards: usize,

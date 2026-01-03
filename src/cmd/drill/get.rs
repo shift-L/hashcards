@@ -71,6 +71,7 @@ fn render_session_page(state: &ServerState, mutable: &MutableState) -> Fallible<
             .with_deck_path(deck_path)?
             .build()?,
         port: state.port,
+        hostname: state.hostname.clone(),
     };
     let card_content = render_card(&card, mutable.reveal, &config)?;
     let card_controls = if mutable.reveal {

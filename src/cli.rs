@@ -59,6 +59,9 @@ enum Command {
         /// Whether or not to bury siblings. Default is true.
         #[arg(long)]
         bury_siblings: Option<bool>,
+        /// Hostname. Default is localhost.
+        #[arg(long, default_value = "localhost")]
+        hostname: String,
     },
     /// Check the integrity of a collection.
     Check {
@@ -114,6 +117,7 @@ pub async fn entrypoint() -> Fallible<()> {
             open_browser,
             answer_controls,
             bury_siblings,
+            hostname,
         } => {
             if open_browser.unwrap_or(true) {
                 // Start a separate task to open the browser once the server is up.
@@ -131,6 +135,7 @@ pub async fn entrypoint() -> Fallible<()> {
             }
             let config = ServerConfig {
                 directory,
+                hostname,
                 port,
                 session_started_at: Timestamp::now(),
                 card_limit,
