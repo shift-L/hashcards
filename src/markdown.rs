@@ -102,7 +102,7 @@ fn modify_url(url: &str, config: &MarkdownRenderConfig) -> Fallible<String> {
         })?
         .display()
         .to_string();
-    Ok(format!("http://{0}:{port}/file/{path}", config.hostname))
+    Ok(format!("https://{0}:{port}/file/{path}", config.hostname))
 }
 
 #[cfg(test)]
