@@ -7,6 +7,11 @@
                 Extras are excluded from the card hash, so editing an
                 explanation does not reset review progress.
             </change>
+            <change author="joekemp">
+                Skip hidden files and directories (names starting with `.`) when
+                walking the collection, so a folder such as `cards/.examples`
+                can be kept in the collection without being drilled.
+            </change>
         </added>
         <changed>
             <change author="joekemp">

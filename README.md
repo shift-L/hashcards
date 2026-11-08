@@ -415,6 +415,22 @@ But you don't want the cards in those Markdown files to have `Ch1`, `Ch2`, etc.
 as their deck name. TOML frontmatter allows you to give each chapter deck the same
 deck name.
 
+### Hidden Files and Directories
+
+When walking the collection, hashcards skips any file or directory whose name
+starts with a dot (`.`). This lets you keep material in the collection without
+drilling it, e.g. a folder of reference decks:
+
+```
+cards/
+  .examples/
+    Art.md
+  Geography.md
+```
+
+The cards under `.examples/` are ignored by `drill`, `check`, `browse` and the
+other commands.
+
 ### Sibling Burial
 
 A single cloze card in the Markdown text with _n_ cloze deletions corresponds to _n_ distinct cloze cards in the database, one per deletion. These cards are called "siblings". 

@@ -94,10 +94,26 @@ fn extract_frontmatter(text: &str) -> Fallible<(DeckMetadata, &str)> {
     Ok((metadata, content))
 }
 
+/// Whether a directory entry should be skipped by the deck walker. Hidden
+/// files and directories (names starting with `.`) are ignored, so a folder
+/// like `cards/.examples` can be kept inside the collection directory without
+/// its cards being parsed. The collection root itself (depth 0) is never
+/// skipped, even if its name starts with a dot.
+fn is_hidden(entry: &walkdir::DirEntry) -> bool {
+    entry.depth() > 0
+        && entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.starts_with('.'))
+}
+
 /// Parses all Markdown files in the given directory.
 pub fn parse_deck(directory: &PathBuf) -> Fallible<Vec<Card>> {
     let mut all_cards = Vec::new();
-    for entry in WalkDir::new(directory) {
+    let walker = WalkDir::new(directory)
+        .into_iter()
+        .filter_entry(|entry| !is_hidden(entry));
+    for entry in walker {
         let entry = entry?;
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
@@ -1443,6 +1459,30 @@ mod tests {
         assert!(deck.is_ok());
         let cards = deck?;
         assert_eq!(cards.len(), 2);
+        Ok(())
+    }
+
+    /// Hidden files and directories (e.g. `.examples/`) are skipped by the
+    /// deck walker, so example cards can live inside the collection without
+    /// being drilled.
+    #[test]
+    fn test_parse_deck_skips_hidden_entries() -> Fallible<()> {
+        let directory = temp_dir().join("hidden_entries_test");
+        let _ = std::fs::remove_dir_all(&directory);
+        create_dir_all(&directory).expect("Failed to create test directory");
+        std::fs::write(directory.join("visible.md"), "Q: foo\nA: bar")
+            .expect("Failed to write test file");
+
+        let hidden_dir = directory.join(".examples");
+        create_dir_all(&hidden_dir).expect("Failed to create hidden test directory");
+        std::fs::write(hidden_dir.join("hidden.md"), "Q: secret\nA: answer")
+            .expect("Failed to write hidden test file");
+        std::fs::write(directory.join(".hidden.md"), "Q: secret\nA: answer")
+            .expect("Failed to write hidden test file");
+
+        let deck = parse_deck(&directory)?;
+
+        assert_eq!(deck.len(), 1);
         Ok(())
     }
 
