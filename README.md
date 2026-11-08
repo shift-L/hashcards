@@ -265,6 +265,28 @@ C: Term: [lithification]
 Definition: [The process of turning loose sediment into rock.]
 ```
 
+### Extra Explanations
+
+Any card can have an optional extra explanation, written with the `E:` tag.
+During a drill session it is hidden behind an **Explain** button, so it never
+leaks the answer early:
+
+```
+Q: What is hegemony?
+A: Rule won by consent in civil society, not coercion alone.
+
+E: The ruling class's power rests on intellectual and moral leadership;
+force is the fallback. The working class must build its own hegemony
+before it can take state power.
+```
+
+The extra explanation can span multiple lines and supports Markdown and LaTeX
+like any other card text. Cards without an `E:` section show no button.
+
+The extra is deliberately **not** part of the card hash, so editing an
+explanation does not reset that card's review progress. It works on basic,
+cloze, and `T:`/`D:` cards.
+
 ### Separators
 
 Optionally, cards can be separated by horizontal rules, like so:

@@ -54,6 +54,9 @@ enum Command {
         /// The hostname to use when rewriting linked resource URLs. Default is localhost.
         #[arg(long, default_value = "localhost")]
         resource_hostname: String,
+        /// The URL scheme to use when rewriting linked resource URLs. Default is http.
+        #[arg(long, default_value = "http")]
+        resource_scheme: String,
         /// The port to use for the web server. Default is 8000.
         #[arg(long, default_value_t = 8000)]
         port: u16,
@@ -80,6 +83,9 @@ enum Command {
         /// The hostname to use when rewriting linked resource URLs. Default is localhost.
         #[arg(long, default_value = "localhost")]
         resource_hostname: String,
+        /// The URL scheme to use when rewriting linked resource URLs. Default is http.
+        #[arg(long, default_value = "http")]
+        resource_scheme: String,
         /// The port to use for the web server. Default is 8000.
         #[arg(long, default_value_t = 8000)]
         port: u16,
@@ -146,6 +152,7 @@ pub async fn entrypoint() -> Fallible<()> {
             new_card_limit,
             host,
             resource_hostname,
+            resource_scheme,
             port,
             from_deck,
             open_browser,
@@ -171,6 +178,7 @@ pub async fn entrypoint() -> Fallible<()> {
                 directory,
                 host,
                 resource_hostname,
+                resource_scheme,
                 port,
                 session_started_at: Timestamp::now(),
                 card_limit,
@@ -186,6 +194,7 @@ pub async fn entrypoint() -> Fallible<()> {
             directory,
             host,
             resource_hostname,
+            resource_scheme,
             port,
             open_browser,
         } => {
@@ -208,6 +217,7 @@ pub async fn entrypoint() -> Fallible<()> {
                 directory,
                 host,
                 resource_hostname,
+                resource_scheme,
                 port,
             };
             start_browse_server(config).await

@@ -60,6 +60,8 @@ pub struct BrowseServerConfig {
     pub directory: Option<String>,
     /// Interface to bind to.
     pub host: String,
+    /// URL scheme to serve resources on.
+    pub resource_scheme: String,
     /// Hostname to serve resources on.
     pub resource_hostname: String,
     /// Server port.
@@ -71,6 +73,8 @@ pub struct BrowseServerConfig {
 pub struct BrowseState {
     /// Server port.
     pub port: u16,
+    /// URL scheme to serve resources on.
+    pub resource_scheme: String,
     /// Hostname to serve resources on.
     pub resource_hostname: String,
     /// The collection directory.
@@ -98,6 +102,7 @@ pub async fn start_browse_server(config: BrowseServerConfig) -> Fallible<()> {
     let db: Arc<Mutex<Database>> = Arc::new(Mutex::new(db));
     let state = BrowseState {
         port: config.port,
+        resource_scheme: config.resource_scheme.clone(),
         resource_hostname: config.resource_hostname.clone(),
         directory,
         macros,

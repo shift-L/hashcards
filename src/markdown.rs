@@ -40,6 +40,8 @@ fn is_audio_file(url: &str) -> bool {
 pub struct MarkdownRenderConfig {
     /// A media resolver.
     pub resolver: MediaResolver,
+    /// The URL scheme where linked media resources are exposed.
+    pub resource_scheme: String,
     /// The hostname where linked media resources are exposed.
     pub resource_hostname: String,
     /// The port where the server is exposed.
@@ -194,6 +196,7 @@ fn is_in_ranges(pos: usize, ranges: &[Range<usize>]) -> bool {
 }
 
 fn modify_url(url: &str, config: &MarkdownRenderConfig) -> Fallible<String> {
+    let scheme = &config.resource_scheme;
     let port = config.port;
     let hostname = &config.resource_hostname;
     let path: String = config
@@ -204,7 +207,7 @@ fn modify_url(url: &str, config: &MarkdownRenderConfig) -> Fallible<String> {
         })?
         .display()
         .to_string();
-    Ok(format!("http://{hostname}:{port}/file/{path}"))
+    Ok(format!("{scheme}://{hostname}:{port}/file/{path}"))
 }
 
 #[cfg(test)]
@@ -226,6 +229,7 @@ mod tests {
                 .with_collection_path(coll_path)?
                 .with_deck_path(PathBuf::from("deck.md"))?
                 .build()?,
+            resource_scheme: "http".to_string(),
             resource_hostname: "localhost".to_string(),
             port: 1234,
         };
@@ -240,6 +244,19 @@ mod tests {
         assert_eq!(
             html,
             "<p><img src=\"http://localhost:1234/file/image.png\" alt=\"alt\" /></p>\n"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_markdown_to_html_custom_resource_scheme() -> Fallible<()> {
+        let markdown = "![alt](@/image.png)";
+        let mut config = make_test_config()?;
+        config.resource_scheme = "https".to_string();
+        let html = markdown_to_html(&config, markdown)?;
+        assert_eq!(
+            html,
+            "<p><img src=\"https://localhost:1234/file/image.png\" alt=\"alt\" /></p>\n"
         );
         Ok(())
     }

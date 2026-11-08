@@ -39,6 +39,24 @@ document.addEventListener("DOMContentLoaded", function () {
   if (cardContent) {
     cardContent.style.opacity = "1";
   }
+  // Wire up the optional explanation toggle. The button only exists when the
+  // card has extra content.
+  const extraButton = document.getElementById("show-extra");
+  if (extraButton) {
+    extraButton.addEventListener("click", function () {
+      const extra = document.getElementById("extra-content");
+      if (!extra) {
+        return;
+      }
+      if (extra.hasAttribute("hidden")) {
+        extra.removeAttribute("hidden");
+        extraButton.textContent = "Hide";
+      } else {
+        extra.setAttribute("hidden", "");
+        extraButton.textContent = "Explain";
+      }
+    });
+  }
 });
 
 document.addEventListener("keydown", function (event) {
@@ -54,6 +72,7 @@ document.addEventListener("keydown", function (event) {
     2: "hard",
     3: "good",
     4: "easy",
+    e: "show-extra",
   };
 
   if (keybindings[event.key]) {

@@ -1,6 +1,18 @@
 <changelog>
     <unreleased>
+        <added>
+            <change author="joekemp">
+                Add optional extra explanations, written with the `E:` tag and
+                revealed on demand behind an Explain button during drilling.
+                Extras are excluded from the card hash, so editing an
+                explanation does not reset review progress.
+            </change>
+        </added>
         <changed>
+            <change author="joekemp">
+                Add `--resource-scheme` to customize the URL scheme used when
+                rewriting media resource URLs.
+            </change>
             <change author="eudoxia0">
                 Update dependencies.
             </change>

@@ -91,6 +91,7 @@ impl Display for AnswerControls {
 pub struct ServerConfig {
     pub directory: Option<String>,
     pub host: String,
+    pub resource_scheme: String,
     pub resource_hostname: String,
     pub port: u16,
     pub session_started_at: Timestamp,
@@ -159,6 +160,7 @@ pub async fn start_server(config: ServerConfig) -> Fallible<()> {
 
     let state = ServerState {
         port: config.port,
+        resource_scheme: config.resource_scheme,
         resource_hostname: config.resource_hostname,
         directory,
         macros,
@@ -389,6 +391,7 @@ mod tests {
         ServerConfig {
             directory: None,
             host: "127.0.0.1".to_string(),
+            resource_scheme: "http".to_string(),
             resource_hostname: "localhost".to_string(),
             port: 0,
             session_started_at: Timestamp::now(),

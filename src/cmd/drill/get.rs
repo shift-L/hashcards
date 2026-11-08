@@ -72,6 +72,7 @@ fn render_session_page(state: &ServerState, mutable: &MutableState) -> Fallible<
             .with_collection_path(coll_path)?
             .with_deck_path(deck_path)?
             .build()?,
+        resource_scheme: state.resource_scheme.clone(),
         resource_hostname: state.resource_hostname.clone(),
         port: state.port,
     };
@@ -173,9 +174,24 @@ fn render_card(card: &Card, reveal: bool, config: &MarkdownRenderConfig) -> Fall
             }
         }
     };
+    let extra = if reveal {
+        card.html_extra(config)?
+    } else {
+        None
+    };
     Ok(html! {
         div.card-content {
             (html)
+            @if let Some(extra) = extra {
+                div .extra-container {
+                    button #show-extra .extra-button type="button" title="Show the explanation. Shortcut: e." {
+                        "Explain"
+                    }
+                    div #extra-content .extra .rich-text hidden {
+                        (extra)
+                    }
+                }
+            }
         }
     })
 }

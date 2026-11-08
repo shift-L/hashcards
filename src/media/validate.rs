@@ -66,10 +66,13 @@ pub fn validate_media_files(cards: &[Card], base_dir: &Path) -> Fallible<()> {
         //
         // TODO: perhaps this should be lifted to a method of the `CardContent`
         // enum.
-        let markdown_texts = match card.content() {
+        let mut markdown_texts = match card.content() {
             CardContent::Basic { question, answer } => vec![question.as_str(), answer.as_str()],
             CardContent::Cloze { text, .. } => vec![text.as_str()],
         };
+        if let Some(extra) = card.extra() {
+            markdown_texts.push(extra);
+        }
 
         for markdown in markdown_texts {
             for path in extract_media_paths(markdown) {

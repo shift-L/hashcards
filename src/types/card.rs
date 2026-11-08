@@ -41,6 +41,9 @@ pub struct Card {
     range: (usize, usize),
     /// The card's content.
     content: CardContent,
+    /// Optional extra explanation, revealed on demand. Deliberately excluded
+    /// from the card hash so that editing it does not reset review progress.
+    extra: Option<String>,
     /// The cached hash of the card's content.
     hash: CardHash,
 }
@@ -80,9 +83,27 @@ impl Card {
             deck_name,
             file_path,
             content,
+            extra: None,
             range,
             hash,
         }
+    }
+
+    /// Set the optional extra explanation. Whitespace-only values are treated
+    /// as absent.
+    ///
+    /// The extra is not part of the card hash: the same question/answer is the
+    /// same card regardless of how its explanation is worded.
+    pub fn with_extra(mut self, extra: Option<String>) -> Self {
+        self.extra = extra
+            .map(|extra| extra.trim().to_string())
+            .filter(|extra| !extra.is_empty());
+        self
+    }
+
+    /// The card's optional extra explanation, if any.
+    pub fn extra(&self) -> Option<&str> {
+        self.extra.as_deref()
     }
 
     /// The name of the deck this card was parsed from.
@@ -145,6 +166,14 @@ impl Card {
     /// The HTML of the back of the card.
     pub fn html_back(&self, config: &MarkdownRenderConfig) -> Fallible<Markup> {
         self.content.html_back(config)
+    }
+
+    /// The HTML of the card's optional extra explanation, if any.
+    pub fn html_extra(&self, config: &MarkdownRenderConfig) -> Fallible<Option<Markup>> {
+        match &self.extra {
+            Some(extra) => Ok(Some(PreEscaped(markdown_to_html(config, extra)?))),
+            None => Ok(None),
+        }
     }
 
     /// Render the back of a cloze family, revealing every cloze deletion in
@@ -374,6 +403,35 @@ impl CardContent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_extra_is_excluded_from_hash() {
+        let make = |extra: &str| {
+            Card::new(
+                "deck".to_string(),
+                PathBuf::from("deck.md"),
+                (0, 1),
+                CardContent::new_basic("q", "a"),
+            )
+            .with_extra(Some(extra.to_string()))
+        };
+        let first = make("first explanation");
+        let second = make("a totally different explanation");
+        assert_eq!(first.hash(), second.hash());
+        assert_eq!(first.extra(), Some("first explanation"));
+    }
+
+    #[test]
+    fn test_empty_extra_is_absent() {
+        let card = Card::new(
+            "deck".to_string(),
+            PathBuf::from("deck.md"),
+            (0, 1),
+            CardContent::new_basic("q", "a"),
+        )
+        .with_extra(Some("   \n  ".to_string()));
+        assert_eq!(card.extra(), None);
+    }
 
     #[test]
     fn test_basic_card_hash() {

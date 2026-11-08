@@ -120,6 +120,7 @@ fn render_card_row(state: &BrowseState, deck_cards: &[&Card], card: &Card) -> Fa
             .with_collection_path(state.directory.clone())?
             .with_deck_path(deck_path)?
             .build()?,
+        resource_scheme: state.resource_scheme.clone(),
         resource_hostname: state.resource_hostname.clone(),
         port: state.port,
     };

@@ -42,6 +42,7 @@ mod tests {
 
     const TEST_HOST: &str = "127.0.0.1";
     const TEST_RESOURCE_HOSTNAME: &str = "localhost";
+    const TEST_RESOURCE_SCHEME: &str = "http";
 
     #[tokio::test]
     async fn test_start_server_on_non_existent_directory() -> Fallible<()> {
@@ -50,6 +51,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some("./derpherp".to_string()),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -77,6 +79,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(dir),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -99,6 +102,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -209,6 +213,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: resource_hostname.to_string(),
             port,
             session_started_at,
@@ -240,6 +245,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -290,6 +296,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -322,6 +329,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -354,6 +362,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -404,6 +413,7 @@ mod tests {
         let config = ServerConfig {
             directory: Some(directory),
             host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
             resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
             port,
             session_started_at,
@@ -426,6 +436,98 @@ mod tests {
         assert!(response.status().is_success());
         let html = response.text().await?;
         assert!(html.contains("Session Completed"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_extra_is_optional_and_revealed_on_demand() -> Fallible<()> {
+        let port = pick_unused_port().unwrap();
+        let dir = tempdir()?.path().to_path_buf().canonicalize()?;
+        create_dir_all(&dir)?;
+        write(
+            Path::new(&dir).join("Deck.md"),
+            "Q: EXTRA_QUESTION\nA: EXTRA_ANSWER\nE: EXTRA_EXPLANATION",
+        )?;
+        let config = ServerConfig {
+            directory: Some(dir.display().to_string()),
+            host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
+            resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
+            port,
+            session_started_at: Timestamp::now(),
+            card_limit: None,
+            new_card_limit: None,
+            deck_filter: None,
+            shuffle: false,
+            answer_controls: AnswerControls::Full,
+            bury_siblings: false,
+        };
+        spawn(async move { start_server(config).await });
+        wait_for_server(TEST_HOST, port).await?;
+
+        // Before reveal, neither the explanation nor its button are present.
+        let html = reqwest::get(format!("http://{TEST_HOST}:{port}/"))
+            .await?
+            .text()
+            .await?;
+        assert!(html.contains("EXTRA_QUESTION"));
+        assert!(!html.contains("show-extra"));
+        assert!(!html.contains("EXTRA_EXPLANATION"));
+
+        // After reveal, the button and the (hidden) explanation are present.
+        let html = reqwest::Client::new()
+            .post(format!("http://{TEST_HOST}:{port}/"))
+            .form(&[("action", "Reveal")])
+            .send()
+            .await?
+            .text()
+            .await?;
+        assert!(html.contains("EXTRA_ANSWER"));
+        assert!(html.contains("show-extra"));
+        assert!(html.contains("extra-content"));
+        assert!(html.contains("EXTRA_EXPLANATION"));
+        assert!(html.contains("hidden"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_extra_hides_the_button() -> Fallible<()> {
+        let port = pick_unused_port().unwrap();
+        let dir = tempdir()?.path().to_path_buf().canonicalize()?;
+        create_dir_all(&dir)?;
+        write(
+            Path::new(&dir).join("Deck.md"),
+            "Q: PLAIN_QUESTION\nA: PLAIN_ANSWER",
+        )?;
+        let config = ServerConfig {
+            directory: Some(dir.display().to_string()),
+            host: TEST_HOST.to_string(),
+            resource_scheme: TEST_RESOURCE_SCHEME.to_string(),
+            resource_hostname: TEST_RESOURCE_HOSTNAME.to_string(),
+            port,
+            session_started_at: Timestamp::now(),
+            card_limit: None,
+            new_card_limit: None,
+            deck_filter: None,
+            shuffle: false,
+            answer_controls: AnswerControls::Full,
+            bury_siblings: false,
+        };
+        spawn(async move { start_server(config).await });
+        wait_for_server(TEST_HOST, port).await?;
+
+        // A card without extra content shows no explanation button.
+        let html = reqwest::Client::new()
+            .post(format!("http://{TEST_HOST}:{port}/"))
+            .form(&[("action", "Reveal")])
+            .send()
+            .await?
+            .text()
+            .await?;
+        assert!(html.contains("PLAIN_ANSWER"));
+        assert!(!html.contains("show-extra"));
 
         Ok(())
     }

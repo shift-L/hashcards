@@ -211,8 +211,22 @@ enum State {
     },
     /// Reading a cloze `C:`
     ReadingCloze { text: String, start_line: usize },
+    /// Reading an optional explanation `E:` after a card body.
+    ReadingExtra {
+        pending: Pending,
+        extra: String,
+        start_line: usize,
+    },
     /// End state.
     End,
+}
+
+/// A card body that has been fully read, but not yet emitted because an
+/// optional `E:` explanation may still follow it.
+enum Pending {
+    Basic { question: String, answer: String },
+    Cloze { text: String },
+    TermDefinition { term: String, definition: String },
 }
 
 enum Line {
@@ -226,6 +240,8 @@ enum Line {
     StartDefinition(String),
     /// `C: <text>`.
     StartCloze(String),
+    /// `E: <text>` (optional extra explanation).
+    StartExtra(String),
     /// A line that's just `---` (flashcard separator).
     Separator,
     /// Any other line.
@@ -246,6 +262,8 @@ impl Line {
             Line::StartDefinition(line_content(line))
         } else if line.starts_with("C:") {
             Line::StartCloze(line_content(line))
+        } else if line.starts_with("E:") {
+            Line::StartExtra(line_content(line))
         } else if line.trim() == "---" {
             Line::Separator
         } else {
@@ -316,6 +334,11 @@ impl Parser {
                     self.file_path.clone(),
                     line_num,
                 )),
+                Line::StartExtra(_) => Err(ParserError::new(
+                    "Found extra without an associated card.",
+                    self.file_path.clone(),
+                    line_num,
+                )),
                 Line::StartCloze(text) => Ok(State::ReadingCloze {
                     text,
                     start_line: line_num,
@@ -367,6 +390,12 @@ impl Parser {
                     self.file_path.clone(),
                     line_num,
                 )),
+                Line::StartExtra(_) => Err(ParserError::new_from_invalid_line_combination(
+                    "extra",
+                    "question",
+                    self.file_path.clone(),
+                    line_num,
+                )),
                 Line::Separator => Err(ParserError::new_from_invalid_line_combination(
                     "flashcard separator",
                     "question",
@@ -410,6 +439,11 @@ impl Parser {
                         self.file_path.clone(),
                         line_num,
                     )),
+                    Line::StartExtra(extra_text) => Ok(State::ReadingExtra {
+                        pending: Pending::Basic { question, answer },
+                        extra: extra_text,
+                        start_line,
+                    }),
                     Line::StartTerm(text) => {
                         // Finalize the previous card.
                         let card = Card::new(
@@ -508,6 +542,12 @@ impl Parser {
                     self.file_path.clone(),
                     line_num,
                 )),
+                Line::StartExtra(_) => Err(ParserError::new_from_invalid_line_combination(
+                    "extra",
+                    "term",
+                    self.file_path.clone(),
+                    line_num,
+                )),
                 Line::Separator => Err(ParserError::new_from_invalid_line_combination(
                     "flashcard separator",
                     "term",
@@ -542,6 +582,11 @@ impl Parser {
                         self.file_path.clone(),
                         line_num,
                     )),
+                    Line::StartExtra(extra_text) => Ok(State::ReadingExtra {
+                        pending: Pending::TermDefinition { term, definition },
+                        extra: extra_text,
+                        start_line,
+                    }),
                     Line::StartTerm(text) => {
                         // Finalize the previous card.
                         cards.extend(
@@ -643,6 +688,11 @@ impl Parser {
                         self.file_path.clone(),
                         line_num,
                     )),
+                    Line::StartExtra(extra_text) => Ok(State::ReadingExtra {
+                        pending: Pending::Cloze { text },
+                        extra: extra_text,
+                        start_line,
+                    }),
                     Line::StartTerm(new_text) => {
                         // Finalize the previous cloze card.
                         cards.extend(self.parse_cloze_cards(text, start_line, line_num)?);
@@ -686,8 +736,114 @@ impl Parser {
                     }
                 }
             }
+            State::ReadingExtra {
+                pending,
+                extra,
+                start_line,
+            } => match line {
+                Line::StartQuestion(text) => {
+                    self.finalize_pending(pending, Some(extra), start_line, line_num, cards)?;
+                    Ok(State::ReadingQuestion {
+                        question: text,
+                        start_line: line_num,
+                    })
+                }
+                Line::StartTerm(text) => {
+                    self.finalize_pending(pending, Some(extra), start_line, line_num, cards)?;
+                    Ok(State::ReadingTerm {
+                        term: text,
+                        start_line: line_num,
+                    })
+                }
+                Line::StartCloze(text) => {
+                    self.finalize_pending(pending, Some(extra), start_line, line_num, cards)?;
+                    Ok(State::ReadingCloze {
+                        text,
+                        start_line: line_num,
+                    })
+                }
+                Line::Separator => {
+                    self.finalize_pending(pending, Some(extra), start_line, line_num, cards)?;
+                    Ok(State::Start)
+                }
+                Line::Text(text) => Ok(State::ReadingExtra {
+                    pending,
+                    extra: format!("{extra}\n{text}"),
+                    start_line,
+                }),
+                Line::Eof => {
+                    self.finalize_pending(pending, Some(extra), start_line, line_num, cards)?;
+                    Ok(State::End)
+                }
+                Line::StartAnswer(_) => Err(ParserError::new_from_invalid_line_combination(
+                    "answer",
+                    "extra",
+                    self.file_path.clone(),
+                    line_num,
+                )),
+                Line::StartDefinition(_) => Err(ParserError::new_from_invalid_line_combination(
+                    "definition",
+                    "extra",
+                    self.file_path.clone(),
+                    line_num,
+                )),
+                Line::StartExtra(_) => Err(ParserError::new_from_invalid_line_combination(
+                    "extra",
+                    "extra",
+                    self.file_path.clone(),
+                    line_num,
+                )),
+            },
             State::End => unreachable!("Parsed a line after the end of the file."),
         }
+    }
+
+    /// Emit the card(s) for a [`Pending`] card body, attaching the optional
+    /// extra explanation.
+    fn finalize_pending(
+        &self,
+        pending: Pending,
+        extra: Option<String>,
+        start_line: usize,
+        end_line: usize,
+        cards: &mut Vec<Card>,
+    ) -> Result<(), ParserError> {
+        match pending {
+            Pending::Basic { question, answer } => {
+                cards.push(
+                    Card::new(
+                        self.deck_name.clone(),
+                        self.file_path.clone(),
+                        (start_line, end_line),
+                        CardContent::new_basic(question, answer),
+                    )
+                    .with_extra(extra),
+                );
+            }
+            Pending::Cloze { text } => {
+                cards.extend(
+                    self.parse_cloze_cards(text, start_line, end_line)?
+                        .into_iter()
+                        .map(|card| card.with_extra(extra.clone())),
+                );
+            }
+            Pending::TermDefinition { term, definition } => {
+                cards.extend(
+                    CardContent::new_cloze_pair_from_term_definition(&term, &definition).map(
+                        |content| {
+                            Card::new(
+                                self.deck_name.clone(),
+                                self.file_path.clone(),
+                                (start_line, end_line),
+                                content,
+                            )
+                            .with_extra(extra.clone())
+                        },
+                    ),
+                );
+            }
+        }
+        Ok(())
     }
 
     fn parse_cloze_cards(
@@ -1129,6 +1285,70 @@ mod tests {
         assert_cloze(&cards[0..1], "foo", &[(0, 2)]);
         assert_cloze(&cards[1..2], "bar", &[(0, 2)]);
         Ok(())
+    }
+
+    #[test]
+    fn test_basic_card_with_extra() -> Result<(), ParserError> {
+        let input = "Q: foo\nA: bar\nE: an explanation";
+        let parser = make_test_parser();
+        let cards = parser.parse(input)?;
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].extra(), Some("an explanation"));
+        assert!(matches!(
+            &cards[0].content(),
+            CardContent::Basic { question, answer } if question == "foo" && answer == "bar"
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiline_extra() -> Result<(), ParserError> {
+        let input = "Q: foo\nA: bar\nE: line one\n\nline two";
+        let parser = make_test_parser();
+        let cards = parser.parse(input)?;
+        assert_eq!(cards[0].extra(), Some("line one\n\nline two"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_cloze_card_with_extra() -> Result<(), ParserError> {
+        let input = "C: a [cloze] here\nE: why";
+        let parser = make_test_parser();
+        let cards = parser.parse(input)?;
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].extra(), Some("why"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_term_definition_with_extra() -> Result<(), ParserError> {
+        let input = "T: foo\nD: bar\nE: why";
+        let parser = make_test_parser();
+        let cards = parser.parse(input)?;
+        assert_eq!(cards.len(), 2);
+        assert!(cards.iter().all(|card| card.extra() == Some("why")));
+        Ok(())
+    }
+
+    #[test]
+    fn test_extra_changes_do_not_change_hash() -> Result<(), ParserError> {
+        let parser = make_test_parser();
+        let first = parser.parse("Q: foo\nA: bar\nE: one")?;
+        let second = parser.parse("Q: foo\nA: bar\nE: two")?;
+        assert_eq!(first[0].hash(), second[0].hash());
+        Ok(())
+    }
+
+    #[test]
+    fn test_extra_without_card_errors() {
+        let parser = make_test_parser();
+        assert!(parser.parse("E: orphan").is_err());
+    }
+
+    #[test]
+    fn test_two_extras_error() {
+        let parser = make_test_parser();
+        assert!(parser.parse("Q: foo\nA: bar\nE: one\nE: two").is_err());
     }
 
     #[test]
